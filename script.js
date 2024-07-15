@@ -56,98 +56,134 @@ function neighboursToLoop(rowref, colref, maxRow, maxCol){
     return toLoop;
 }
 
-function preset(row, col){
-    let neighbourCounts = Array.from({ length: row }, () => Array(col).fill(0));
-    let clickedBool = Array.from({ length: row }, () => Array(col).fill(false));
-    let activeCells = [];
+function preset(row, col, inputCells, gameState){
     elementsArr = createGrid(20,20,row,col,container);
-    elementsArr.forEach((spec, rowref) => {
-        spec.forEach((item, colref) => {
+    elementsArr.forEach((row, rowref) => {
+        row.forEach((item, colref) => {
             item.addEventListener("mousedown", ()=>{
-                if(!(clickedBool[rowref][colref])){
-                    clickedBool[rowref][colref] = true
-                    //adding cells, next make deleting
-                    neighboursToLoop(rowref, colref, row, col).forEach(([y,x]) => {
-                        neighbourCounts[y][x]++;
-                    });
-                    activeCells.push([rowref, colref]);
-                    item.className = 'selected';
-                }
+                if (cellExists(rowref, colref, inputCells)) delete inputCells[rowref][colref];
+                else addTo2dDict(rowref, colref, inputCells, 1)
+                if (gameState.state == "pause") updateElement(elementsArr[rowref][colref]);
             });
         });
     });
-    return [neighbourCounts, activeCells, elementsArr, clickedBool];
+    return elementsArr;
 }
 
-function updateElements(elementsArr, activeCells){
-    activeCells.forEach(([y,x]) => {
-        elementsArr[y][x].className = 'selected';
-    });
+function updateElement(element){
+    if (element.className == 'box') element.className = 'selected';
+    else element.className = 'box';
 }
 
-function deactivateElements(elementsArr, activeCells){
-    activeCells.forEach(([y,x]) => {
-        elementsArr[y][x].className = 'box';
-    });
-}
-
-function recountNeighbours(neighbourCounts, activeCells){
-    row = cellStates.length;
-    col = cellStates[0].length;
-    neighbourCounts = Array.from({ length: row }, () => Array(col).fill(0));
-    activeCells.forEach(([y,x]) => {
-        neighboursToLoop(y,x,row,col).forEach(([neighbourRow, neighbourCol]) => {
-            neighbourCounts[neighbourRow][neighbourCol]++;
-        });
-    });
-    return neighbourCounts;
-}
-
-function serialize(tupleArr){
-    set = new Set();
-    tupleArr.forEach(tuple => {
-        set.add(`${tuple[0]},${tuple[1]}`);
-    });
-    return set;
-}
-
-function unserialize(set){
-    arr = [];
-    set.forEach(item => {
-        let [num1, num2] = item.split(',').map(Number);
-        arr.push([num1, num2]);
-    });
-    return arr;
-}
-
-function setNextStates(neighbourCounts, activeCells, elementsArr, cellStates){
-    let row = elementsArr.length;
-    let col = elementsArr[0].length;
-    deactivateElements(elementsArr, activeCells);
-    activeSerialized = serialize(activeCells);
-    activeCells.forEach(([y,x]) => {
-        if(neighbourCounts[y][x]> 3 || neighbourCounts[y][x] < 2){
-            cellStates[y][x] = false;
-            activeSerialized.delete(`${y},${x}`);
+function updateElementsFromDict(elementsArr, dict){
+    for (let rowref in dict) {
+        rowref = parseInt(rowref);
+        for (let colref in dict[rowref]) {
+            colref = parseInt(colref);
+            element = elementsArr[rowref][colref];
+            if (element.className == 'box') element.className = 'selected';
+            else element.className = 'box';
         }
-        neighboursToLoop(y,x,row,col).forEach(([neighbourRow, neighbourCol]) => {
-            if(!(cellStates[neighbourRow][neighbourCol]) && (neighbourCounts[neighbourRow][neighbourCol] == 3)){
-                cellStates[neighbourRow][neighbourCol] = true;
-                activeSerialized.add(`${neighbourRow},${neighbourCol}`);
-            }
-        });
-    });
-    activeCells = unserialize(activeSerialized);
-    updateElements(elementsArr, activeCells);
-    neighbourCounts = recountNeighbours(neighbourCounts, activeCells);
-    return [neighbourCounts, activeCells, cellStates]; 
+    }
 }
 
-function start(neighbourCounts, activeCells, elementsArr, cellStates){
+function updateElementsFromArray(elementsArr, arr){
+    arr.forEach(([rowref,colref]) => {
+        element = elementsArr[rowref][colref];
+        if (element.className == 'box') element.className = 'selected';
+        else element.className = 'box';
+    });
+}
+
+function addTo2dDict(rowref, colref, dict, item){
+    if (rowref in dict) dict[rowref][colref] = item;
+    else dict[rowref] = {[colref]: item};
+}
+
+function cellExists(rowref, colref, dict){
+    if (rowref in dict && colref in dict[rowref])  return true;
+    else return false;
+}
+
+function recalculateCellNeighbours(rowref, colref, activeCells, mode, numRows, numCols){
+    neighboursArr = neighboursToLoop(rowref,colref,numRows,numCols);
+    if (mode == "add"){
+        if (cellExists(rowref, colref, activeCells)){
+            activeCells[rowref][colref][1] = "live";
+        }
+        else{
+            addTo2dDict(rowref, colref, activeCells, [0, "live"]);
+        }
+        neighboursArr.forEach(([neighbourRow, neighbourCol]) => {
+            if (cellExists(neighbourRow, neighbourCol, activeCells)){
+                activeCells[neighbourRow][neighbourCol][0]++;
+            }
+            else addTo2dDict(neighbourRow, neighbourCol, activeCells, [1, "dead"]);
+        });
+    }
+    else if(mode == "delete"){
+        activeCells[rowref][colref][1] = "dead";
+        neighboursArr.forEach(([neighbourRow, neighbourCol]) => {
+            activeCells[neighbourRow][neighbourCol][0]--;
+        });
+        if (activeCells[rowref][colref][0] == 0) delete activeCells[rowref][colref];
+    }
+}
+
+function start(elementsArr, inputCells, gameState, activeCells, numRows, numCols){
+    gameState.state = "start";
+    let firstIteration = true;
     function loop(delay){
         setTimeout(function() {
-            [a,b,c] = setNextStates(neighbourCounts, activeCells, elementsArr, cellStates);
-            neighbourCounts = a, activeCells = b, cellStates = c;
+            //if input has been added mid loop
+            if (Object.keys(inputCells).length !== 0) {
+                //Merging inputCells with activeCells
+                const activeCellsCopy = JSON.parse(JSON.stringify(activeCells));
+                for (let rowref in inputCells) {
+                    rowref = parseInt(rowref);
+                    for (let colref in inputCells[rowref]) {
+                        colref = parseInt(colref);
+                        if (cellExists(rowref, colref, activeCellsCopy)){
+                            if(activeCellsCopy[rowref][colref][1] == "live") recalculateCellNeighbours(rowref, colref, activeCells, "delete", numRows, numCols);
+                            else recalculateCellNeighbours(rowref, colref, activeCells, "add", numRows, numCols);
+                        }
+                        else recalculateCellNeighbours(rowref, colref, activeCells, "add", numRows, numCols);
+                    }
+                }
+                if(firstIteration) firstIteration = false;
+                else updateElementsFromDict(elementsArr, inputCells);
+                Object.keys(inputCells).forEach(row => {
+                    delete inputCells[row];
+                });
+            } 
+            if (gameState.state == "start"){
+                //Checks activeCells, deletes, adds accordingly
+                let toAdd = [], toRemove = [];
+                for (let rowref in activeCells) {
+                    rowref = parseInt(rowref);
+                    for (let colref in activeCells[rowref]) {
+                        colref = parseInt(colref);
+                        let isLive = activeCells[rowref][colref][1] == "live";
+                        if (isLive){
+                            let overpopulated = activeCells[rowref][colref][0] > 3;
+                            let underpopulated = activeCells[rowref][colref][0] < 2;
+                            if(overpopulated || underpopulated) toRemove.push([rowref, colref]);
+                        }
+                        else{
+                            let growth = activeCells[rowref][colref][0] == 3;
+                            if(growth) toAdd.push([rowref, colref]);
+                        }  
+                    }
+                }
+                toAdd.forEach(([rowref, colref]) => {
+                    recalculateCellNeighbours(rowref, colref, activeCells, "add", numRows, numCols);
+                });
+                toRemove.forEach(([rowref, colref]) => {
+                    recalculateCellNeighbours(rowref, colref, activeCells, "delete", numRows, numCols);
+                });
+                updateElementsFromArray(elementsArr, toAdd);
+                updateElementsFromArray(elementsArr, toRemove);
+            }
             loop(delay);
         }, delay);
     }
@@ -155,15 +191,18 @@ function start(neighbourCounts, activeCells, elementsArr, cellStates){
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
-    const row = 100;
-    const col = 100;
+    const row = 20;
+    const col = 20;
     const container = document.querySelector("#container");
-    [neighbourCounts, activeCells, elementsArr, cellStates] = preset(row, col);
+    let gameState = {state:"pause"};
+    let inputCells = {};
+    let activeCells = {};
+    let elementsArr = preset(row, col, inputCells, gameState);
     let buttonsDict = {
-        "#startButton": function(){start(neighbourCounts, activeCells, elementsArr, cellStates);},
+        "#startButton": function(){start(elementsArr, inputCells, gameState, activeCells, row, col);},
+        "#pauseButton": function(){gameState = "pause"},
         "#resetButton": function(){
-            reset(elementsArr);
-            neighbourCounts = Array.from({ length: col }, () => Array(row).fill(0));
+            reset(elementsArr, inputCells);
         },
     };
     activateButtons(buttonsDict);
