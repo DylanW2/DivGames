@@ -34,11 +34,17 @@ function createGrid(width, height, rowNum, colNum, container){
 }
 
 
-function reset(gridElements){
+function reset(gridElements, inputCells, activeCells){
     gridElements.forEach((spec) => {
         spec.forEach((item) => {
             item.className = 'box';
         });
+    });
+    Object.keys(inputCells).forEach(row => {
+        delete inputCells[row];
+    });
+    Object.keys(activeCells).forEach(row => {
+        delete activeCells[row];
     });
 }
 
@@ -81,7 +87,9 @@ function updateElementsFromDict(elementsArr, dict){
         for (let colref in dict[rowref]) {
             colref = parseInt(colref);
             element = elementsArr[rowref][colref];
-            if (element.className == 'box') element.className = 'selected';
+            if (element.className == 'box'){
+                element.className = 'selected';
+            }
             else element.className = 'box';
         }
     }
@@ -130,33 +138,36 @@ function recalculateCellNeighbours(rowref, colref, activeCells, mode, numRows, n
     }
 }
 
-function start(elementsArr, inputCells, gameState, activeCells, numRows, numCols){
+function start(elementsArr, inputCells, gameState, activeCells, numRows, numCols, firstEverIteration, firstIteration){
     gameState.state = "start";
-    let firstIteration = true;
+    firstEverIteration.state = false;
     function loop(delay){
         setTimeout(function() {
-            //if input has been added mid loop
-            if (Object.keys(inputCells).length !== 0) {
-                //Merging inputCells with activeCells
-                const activeCellsCopy = JSON.parse(JSON.stringify(activeCells));
-                for (let rowref in inputCells) {
-                    rowref = parseInt(rowref);
-                    for (let colref in inputCells[rowref]) {
-                        colref = parseInt(colref);
-                        if (cellExists(rowref, colref, activeCellsCopy)){
-                            if(activeCellsCopy[rowref][colref][1] == "live") recalculateCellNeighbours(rowref, colref, activeCells, "delete", numRows, numCols);
+            if(gameState.state == "start"){
+                //if input has been added mid loop
+                if (Object.keys(inputCells).length !== 0) {
+                    //Merging inputCells with activeCells
+                    const activeCellsCopy = JSON.parse(JSON.stringify(activeCells));
+                    for (let rowref in inputCells) {
+                        rowref = parseInt(rowref);
+                        for (let colref in inputCells[rowref]) {
+                            colref = parseInt(colref);
+                            if (cellExists(rowref, colref, activeCellsCopy)){
+                                if(activeCellsCopy[rowref][colref][1] == "live") recalculateCellNeighbours(rowref, colref, activeCells, "delete", numRows, numCols);
+                                else recalculateCellNeighbours(rowref, colref, activeCells, "add", numRows, numCols);
+                            }
                             else recalculateCellNeighbours(rowref, colref, activeCells, "add", numRows, numCols);
                         }
-                        else recalculateCellNeighbours(rowref, colref, activeCells, "add", numRows, numCols);
                     }
-                }
-                if(firstIteration) firstIteration = false;
-                else updateElementsFromDict(elementsArr, inputCells);
-                Object.keys(inputCells).forEach(row => {
-                    delete inputCells[row];
-                });
-            } 
-            if (gameState.state == "start"){
+                    if(firstIteration.state) firstIteration.state = false;
+                    else{
+                        updateElementsFromDict(elementsArr, inputCells);
+                    }
+                    //resets input
+                    Object.keys(inputCells).forEach(row => {
+                        delete inputCells[row];
+                    });
+                } 
                 //Checks activeCells, deletes, adds accordingly
                 let toAdd = [], toRemove = [];
                 for (let rowref in activeCells) {
@@ -191,18 +202,28 @@ function start(elementsArr, inputCells, gameState, activeCells, numRows, numCols
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
-    const row = 20;
-    const col = 20;
+    const row = 100;
+    const col = 100;
     const container = document.querySelector("#container");
     let gameState = {state:"pause"};
+    let firstIteration = {state:true};
+    let firstEverIteration = {state:true};
     let inputCells = {};
     let activeCells = {};
     let elementsArr = preset(row, col, inputCells, gameState);
     let buttonsDict = {
-        "#startButton": function(){start(elementsArr, inputCells, gameState, activeCells, row, col);},
-        "#pauseButton": function(){gameState = "pause"},
+        "#startButton": function(){
+            if (firstEverIteration.state) start(elementsArr, inputCells, gameState, activeCells, row, col, firstEverIteration, firstIteration);
+            else gameState.state = "start";
+        },
+        "#pauseButton": function(){
+            gameState.state = "pause";
+            firstIteration.state = true;
+        },
         "#resetButton": function(){
-            reset(elementsArr, inputCells);
+            gameState.state = "pause";
+            firstIteration.state = true;
+            reset(elementsArr, inputCells, activeCells);
         },
     };
     activateButtons(buttonsDict);
