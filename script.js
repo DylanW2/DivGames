@@ -1,3 +1,6 @@
+const deviceWidth = window.innerWidth;
+const deviceHeight = window.innerHeight;
+
 function numberVerify(num){
     if (num%2!=0) return Math.round(num/2)*2;
     else return num;
@@ -62,8 +65,8 @@ function neighboursToLoop(rowref, colref, maxRow, maxCol){
     return toLoop;
 }
 
-function preset(row, col, inputCells, gameState){
-    elementsArr = createGrid(20,20,row,col,container);
+function preset(width, height, row, col, inputCells, gameState){
+    elementsArr = createGrid(width, height,row,col,container);
     elementsArr.forEach((row, rowref) => {
         row.forEach((item, colref) => {
             item.addEventListener("mousedown", ()=>{
@@ -82,17 +85,18 @@ function updateElement(element){
 }
 
 function updateElementsFromDict(elementsArr, dict){
+    let toChange = []
     for (let rowref in dict) {
         rowref = parseInt(rowref);
         for (let colref in dict[rowref]) {
             colref = parseInt(colref);
             element = elementsArr[rowref][colref];
-            if (element.className == 'box'){
-                element.className = 'selected';
-            }
-            else element.className = 'box';
+            toChange.push([element, element.className === 'box' ? 'selected' : 'box']);
         }
     }
+    toChange.forEach(([element, className]) => {
+        element.className = className;
+    });
 }
 
 function updateElementsFromArray(elementsArr, arr){
@@ -202,18 +206,24 @@ function start(elementsArr, inputCells, gameState, activeCells, numRows, numCols
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
-    const row = 100;
-    const col = 100;
+    const minWidth = deviceWidth/70, minHeight = minWidth;;
+    const maxWidth = deviceWidth/20, maxHeight = maxWidth;;
+    let width = minWidth, height = minHeight;
+    let maxColNum = Math.round((deviceWidth*0.75)/(width));
+    let maxRowNum = Math.round((deviceHeight)/(height));
+    let minColNum = Math.round((deviceWidth*0.3)/(width));
+    let minRowNum = Math.round((deviceHeight*0.3)/(height));
+    const rowNum = maxRowNum, colNum = maxColNum;
     const container = document.querySelector("#container");
     let gameState = {state:"pause"};
     let firstIteration = {state:true};
     let firstEverIteration = {state:true};
     let inputCells = {};
     let activeCells = {};
-    let elementsArr = preset(row, col, inputCells, gameState);
+    let elementsArr = preset(width, height, rowNum, colNum, inputCells, gameState);
     let buttonsDict = {
         "#startButton": function(){
-            if (firstEverIteration.state) start(elementsArr, inputCells, gameState, activeCells, row, col, firstEverIteration, firstIteration);
+            if (firstEverIteration.state) start(elementsArr, inputCells, gameState, activeCells, rowNum, colNum, firstEverIteration, firstIteration);
             else gameState.state = "start";
         },
         "#pauseButton": function(){

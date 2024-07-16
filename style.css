@@ -3,7 +3,6 @@ body{
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    min-height: 100vh; 
 }
 
 #container{
@@ -23,7 +22,7 @@ body{
 
 .box{
     box-sizing: border-box; 
-    border: 0px solid black;
+    border: 0.1px solid black;
     background-color: white;
 }
 .box:hover{
